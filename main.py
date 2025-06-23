@@ -1,78 +1,82 @@
 import os
 import telebot
-from telebot.types import ChatMemberUpdated
+from telebot import types
 from keep_alive import keep_alive
-import schedule
-import threading
-import time
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+import pytz
 
-# Variables d’environnement
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = int(os.getenv("GROUP_ID"))
+# === Variables d'environnement ===
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+GROUP_ID = int(os.environ["GROUP_ID"])
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+bot = telebot.TeleBot(BOT_TOKEN)
+scheduler = BackgroundScheduler()
 
-# ✅ Message automatique du matin à 7h30 GMT
-def send_morning_poll():
-    current_time = datetime.utcnow().strftime('%H:%M')
-    if current_time == "07:30":
-        bot.send_message(GROUP_ID,
-            "🌞 *Bonjour la famille KevyFlow Pronostic !*\n\n"
-            "Que la vibe soit bonne, que les cotes soient douces et que la chance nous accompagne aujourd’hui 🍀⚽️🔥\n\n"
-            "💬 *Petit sondage pour se chauffer ce matin :*")
-        bot.send_poll(
-            chat_id=GROUP_ID,
-            question="Prêt Pour les gains d'aujourd'hui ❓🤞🏼🥲",
-            options=["✅ Oui🫂😋", "❌ Non 🙂‍↔️😩", "🕝 Dans un instant 😎"],
-            is_anonymous=False,
-            allows_multiple_answers=False
+# === Bienvenue ===
+@bot.message_handler(content_types=['new_chat_members'])
+def welcome_user(message):
+    for user in message.new_chat_members:
+        username = f"@{user.username}" if user.username else user.first_name
+        welcome_msg = (
+            f"🎉 Bienvenue {username} dans *KevyPronostic* !\n\n"
+            "Tu es ici pour gagner, apprendre et progresser chaque jour 📈🔥.\n"
+            "Les membres actuels peuvent réagir à ce message pour souhaiter la bienvenue 🫂🤝 !\n\n"
+            "🧠 Analyse + 🎯 Précision = 📊 Résultat 💵"
         )
+        bot.send_message(message.chat.id, welcome_msg, parse_mode='Markdown')
 
-# 🌙 Message automatique du soir à 22h00 GMT
-def send_night_poll():
-    current_time = datetime.utcnow().strftime('%H:%M')
-    if current_time == "22:00":
-        bot.send_message(GROUP_ID,
-            "🌙 *Bonne nuit les légendes KevyFlow 💫 !*\n\n"
-            "Quelle que soit l'issue de la journée, l’important c’est de rester focus 🎯\nDemain est un autre jour, une nouvelle opportunité de GAGNER 🏆🔥\n\n"
-            "💬 *Comment s’est passée ta journée ?*")
-        bot.send_poll(
-            chat_id=GROUP_ID,
-            question="Ta journée a été ? 🎲",
-            options=["💸 Gagnante 😍🔥", "😕 Perte 🥲", "📉 Neutre ou mixte"],
-            is_anonymous=False,
-            allows_multiple_answers=False
-        )
+# === Au revoir ===
+@bot.message_handler(content_types=['left_chat_member'])
+def goodbye_user(message):
+    user = message.left_chat_member
+    username = f"@{user.username}" if user.username else user.first_name
+    bye_msg = (
+        f"😢 {username} a quitté *KevyPronostic*...\n"
+        "On espère te revoir bientôt parmi nous 💔.\n"
+        "Bonne chance dans tes paris ! 🍀"
+    )
+    bot.send_message(message.chat.id, bye_msg, parse_mode='Markdown')
 
-# Lancer les tâches planifiées en arrière-plan
-def run_schedule():
-    schedule.every(1).minutes.do(send_morning_poll)
-    schedule.every(1).minutes.do(send_night_poll)
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+# === Message automatique du matin ===
+def send_morning_message():
+    now = datetime.now(pytz.timezone('Africa/Abidjan'))
+    greeting = (
+        "☀️ Bonjour la famille KevyPronostic ! 🤠💸\n\n"
+        "Nouvelle journée, nouveaux gains 🧠📊\n"
+        "Reste focus et ose croire 💯🔥"
+    )
+    poll_question = "Prêt pour les gains d'aujourd'hui ? 🤞🏼🥲"
+    options = ["Oui 🫂😋", "Non 🙂‍↔️😩", "Dans un instant 🕝😎"]
+    bot.send_message(GROUP_ID, greeting)
+    bot.send_poll(GROUP_ID, poll_question, options, is_anonymous=False)
 
-threading.Thread(target=run_schedule).start()
+# === Message automatique du soir ===
+def send_night_message():
+    now = datetime.now(pytz.timezone('Africa/Abidjan'))
+    motivation = (
+        "🌙 La journée touche à sa fin...\n\n"
+        "Qui ne risque rien 🙅🏼‍♂️ n'a rien ❌\n"
+        "C'est quand tu sais pas que t'es en danger que t'es en danger,\n"
+        "Si non si tu sais, tu n'es plus en danger 😎\n\n"
+        "💤 Bonne nuit à vous ! 💤"
+    )
+    poll_question = "Ta journée a été ?"
+    options = ["🎯 Gain ✅", "😓 Perte ❌", "🔁 Équilibre"]
+    bot.send_message(GROUP_ID, motivation)
+    bot.send_poll(GROUP_ID, poll_question, options, is_anonymous=False)
 
-# 🎉 Message de bienvenue quand un nouveau membre rejoint
-@bot.chat_member_handler()
-def welcome_new_member(message: ChatMemberUpdated):
-    if message.new_chat_member.status == "member":
-        user = message.new_chat_member.user
-        if not user.is_bot:
-            bot.send_message(GROUP_ID,
-                f"🎉 Bienvenue @{user.username or user.first_name} dans *KevyFlow Pronostic* 🤑💸 !\n\n"
-                "🔥 Tu es ici pour gagner, apprendre, vibrer, et faire partie de la team la plus chaude de tout Telegram !\n\n"
-                "👥 Membres, mettez un max de réactions pour accueillir notre nouveau champion ! 😎💥\n\n"
-                "*Que la chance soit avec toi !* 🍀🔥")
+# === Planification automatique ===
+scheduler.add_job(send_morning_message, 'cron', hour=7, minute=30, timezone='Africa/Abidjan')
+scheduler.add_job(send_night_message, 'cron', hour=22, minute=30, timezone='Africa/Abidjan')
+scheduler.start()
 
-# 🔄 Message par défaut si utilisateur envoie un message au bot
-@bot.message_handler(func=lambda msg: True)
-def fallback(msg):
-    bot.reply_to(msg, "👋 Hey ! Je suis KevyBot et je m’occupe du groupe 😉\nJe travaille en coulisse pour que tout roule 🧠💡")
+# === Fallback handler ===
+@bot.message_handler(func=lambda message: True)
+def fallback(message):
+    bot.send_message(message.chat.id, "😊 Je suis KevyBot, prêt à te motiver et te guider chaque jour !")
 
-# ✅ Lancement du bot
-print("🤖 KevyFlow Pronostic Bot est en marche !")
+# === Keep Alive & Launch ===
 keep_alive()
+print("KevyBot est actif 🔥")
 bot.infinity_polling()
